@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -53,7 +54,7 @@ import (
 
 // Variation7.go rev0.1 port mac + no regex and date/name inner loop my mac: 16.6
 
-// Variation7.go rev19 (64k rev18 + rearrangements: do not format date, name at index 'in-loop') on my mac: 5.99
+// Variation7.go rev19 (64k rev18 + rearrangements: do not format date, name at index 'in-loop') on my mac: 4.10
 
 /*
 nameTime: 7.665251714s, lineCountTime: 7.668233675s, donationsTime: 7.668921714s, mostCommonTime: 7.66892908s
@@ -63,14 +64,21 @@ nameTime: 5.991776806s, lineCountTime: 5.99181482s, donationsTime: 5.99187407s, 
 nameTime: 6.968188955s, lineCountTime: 6.968230746s, donationsTime: 6.968301294s, mostCommonTime: 6.968305262s
 nameTime: 6.650723052s, lineCountTime: 6.65078616s, donationsTime: 6.65085454s, mostCommonTime: 6.650859126s
 nameTime: 6.350935963s, lineCountTime: 6.350976192s, donationsTime: 6.351034922s, mostCommonTime: 6.351043701s
-nameTime: 6.132525896s, lineCountTime: 6.132571862s, donationsTime: 6.132635748s, mostCommonTime: 6.132640084s
-nameTime: 6.834013785s, lineCountTime: 6.834068142s, donationsTime: 6.83413639s, mostCommonTime: 6.834141876s
-nameTime: 6.040252896s, lineCountTime: 6.040292873s, donationsTime: 6.04035094s, mostCommonTime: 6.040354669s
-nameTime: 6.807681195s, lineCountTime: 6.807739378s, donationsTime: 6.807806361s, mostCommonTime: 6.807811034s
-nameTime: 6.465501012s, lineCountTime: 6.465547054s, donationsTime: 6.465611449s, mostCommonTime: 6.46561605s
-nameTime: 6.152842554s, lineCountTime: 6.152890566s, donationsTime: 6.152950138s, mostCommonTime: 6.152955223s
-nameTime: 6.49781566s, lineCountTime: 6.497855699s, donationsTime: 6.497919243s, mostCommonTime: 6.497923515s
-nameTime: 6.154062435s, lineCountTime: 6.154105094s, donationsTime: 6.154170383s, mostCommonTime: 6.154178368s
+
+date as string
+
+nameTime: 4.401865629s, lineCountTime: 4.401904082s, donationsTime: 4.401960196s, mostCommonTime: 4.401964586s
+nameTime: 4.389938167s, lineCountTime: 4.389975238s, donationsTime: 4.390037839s, mostCommonTime: 4.390042675s
+nameTime: 4.337873304s, lineCountTime: 4.337906089s, donationsTime: 4.337961556s, mostCommonTime: 4.337966203s
+nameTime: 4.456026815s, lineCountTime: 4.456064193s, donationsTime: 4.456128439s, mostCommonTime: 4.456133392s
+nameTime: 4.431424339s, lineCountTime: 4.431460791s, donationsTime: 4.431520898s, mostCommonTime: 4.431525321s
+nameTime: 4.431707128s, lineCountTime: 4.431751947s, donationsTime: 4.431809144s, mostCommonTime: 4.431813877s
+nameTime: 4.420236883s, lineCountTime: 4.420279724s, donationsTime: 4.420337929s, mostCommonTime: 4.420342382s
+nameTime: 4.457460186s, lineCountTime: 4.457492907s, donationsTime: 4.457547151s, mostCommonTime: 4.457551674s
+nameTime: 4.435049851s, lineCountTime: 4.43508394s, donationsTime: 4.43513404s, mostCommonTime: 4.435138693s
+
+
+
 */
 
 func main() {
@@ -91,21 +99,19 @@ func main() {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-
-	firstNames := make([]string, 0, 0)
-	dates := make([]string, 0, 0)
+	dates := make([]int, 0, 0)
 
 	start := time.Now()
 
 	nameMap := make(map[string]int)
-	dateMap := make(map[string]int)
+	dateMap := make(map[int]int)
 	common := ""
 	commonCount := 0
 
 	type entry struct {
 		firstName string
 		name      string
-		date      string
+		date      int
 	}
 
 	linesChunkLen := 64 * 1024
@@ -129,6 +135,7 @@ func main() {
 
 	namesCounted := false
 	namesCount := 0
+	fileLineCount := int64(0)
 
 	scanner.Scan()
 	for {
@@ -138,6 +145,7 @@ func main() {
 
 		willScan := scanner.Scan()
 		if len(lines) == linesChunkLen || !willScan {
+			atomic.AddInt64(&fileLineCount, int64(len(lines)))
 			wg.Add(len(lines))
 			linesToProcess := lines // bug
 			go func() {
@@ -160,7 +168,7 @@ func main() {
 					}
 
 					// extract dates
-					e.date = split[4][:6]
+					e.date, _ = strconv.Atoi(split[4][:6])
 					collected = append(collected, e)
 				}
 				linesPool.Put(linesToProcess)
@@ -168,8 +176,6 @@ func main() {
 				mutex.Lock()
 				for _, e0 := range collected {
 					if e0.firstName != "" {
-						firstNames = append(firstNames, e0.firstName)
-
 						ncount := nameMap[e0.firstName] + 1
 						nameMap[e0.firstName] = ncount
 						if ncount > commonCount {
@@ -178,17 +184,15 @@ func main() {
 						}
 					}
 					if namesCounted == false {
-						namesCount++
-						if namesCount == 1 {
+						if namesCount == 0 {
 							fmt.Printf("Name: %s at index: %v\n", e0.name, 0)
-						}
-						if namesCount == 432+1 {
+						} else if namesCount == 432 {
 							fmt.Printf("Name: %s at index: %v\n", e0.name, 432)
-						}
-						if namesCount == 43243+1 {
+						} else if namesCount == 43243 {
 							fmt.Printf("Name: %s at index: %v\n", e0.name, 43243)
 							namesCounted = true
 						}
+						namesCount++
 					}
 					dates = append(dates, e0.date)
 					dateMap[e0.date]++
@@ -206,23 +210,19 @@ func main() {
 	}
 	wg.Wait()
 
-	nameTime := time.Since(start)
-	fmt.Printf("Name time: %v\n", nameTime)
-	fmt.Printf("Total file line count: %v\n", namesCount)
-	lineCountTime := time.Since(start)
-	fmt.Printf("Line count time: : %v\n", lineCountTime)
+	fmt.Printf("Name time: %v\n", time.Since(start))
+	fmt.Printf("Total file line count: %v\n", fileLineCount)
+	fmt.Printf("Line count time: : %v\n", time.Since(start))
 
 	for k, v := range dateMap {
 		fmt.Printf("Donations per month and year: %v and donation ncount: %v\n", k, v)
 	}
-	donationsTime := time.Since(start)
-	fmt.Printf("Donations time: : %v\n", donationsTime)
+	fmt.Printf("Donations time: : %v\n", time.Since(start))
 
 	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
-	mostCommonTime := time.Since(start)
-	fmt.Printf("Most common name time: %v\n", mostCommonTime)
+	fmt.Printf("Most common name time: %v\n", time.Since(start))
 
 	// other stats
 	fmt.Printf("linesChunkPoolAllocated: %v, collectedPoolAllocated: %v\n", linesChunkPoolAllocated, collectedPoolAllocated)
-	fmt.Printf("nameTime: %v, lineCountTime: %v, donationsTime: %v, mostCommonTime: %v\n", nameTime, lineCountTime, donationsTime, mostCommonTime)
+	fmt.Printf("nameTime: %v, lineCountTime: %v, donationsTime: %v, mostCommonTime: %v\n", time.Since(start), time.Since(start), time.Since(start), time.Since(start))
 }
