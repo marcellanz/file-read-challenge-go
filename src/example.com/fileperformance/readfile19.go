@@ -53,7 +53,25 @@ import (
 
 // Variation7.go rev0.1 port mac + no regex and date/name inner loop my mac: 16.6
 
-// Variation7.go rev19 (64k rev18 + minor rearrangements) on my mac:
+// Variation7.go rev19 (64k rev18 + rearrangements: do not format date, name at index 'in-loop') on my mac: 5.99
+
+/*
+nameTime: 7.665251714s, lineCountTime: 7.668233675s, donationsTime: 7.668921714s, mostCommonTime: 7.66892908s
+nameTime: 6.128489519s, lineCountTime: 6.128532829s, donationsTime: 6.128597896s, mostCommonTime: 6.128602122s
+nameTime: 6.19426646s, lineCountTime: 6.194322791s, donationsTime: 6.194388264s, mostCommonTime: 6.194391954s
+nameTime: 5.991776806s, lineCountTime: 5.99181482s, donationsTime: 5.99187407s, mostCommonTime: 5.991878205s
+nameTime: 6.968188955s, lineCountTime: 6.968230746s, donationsTime: 6.968301294s, mostCommonTime: 6.968305262s
+nameTime: 6.650723052s, lineCountTime: 6.65078616s, donationsTime: 6.65085454s, mostCommonTime: 6.650859126s
+nameTime: 6.350935963s, lineCountTime: 6.350976192s, donationsTime: 6.351034922s, mostCommonTime: 6.351043701s
+nameTime: 6.132525896s, lineCountTime: 6.132571862s, donationsTime: 6.132635748s, mostCommonTime: 6.132640084s
+nameTime: 6.834013785s, lineCountTime: 6.834068142s, donationsTime: 6.83413639s, mostCommonTime: 6.834141876s
+nameTime: 6.040252896s, lineCountTime: 6.040292873s, donationsTime: 6.04035094s, mostCommonTime: 6.040354669s
+nameTime: 6.807681195s, lineCountTime: 6.807739378s, donationsTime: 6.807806361s, mostCommonTime: 6.807811034s
+nameTime: 6.465501012s, lineCountTime: 6.465547054s, donationsTime: 6.465611449s, mostCommonTime: 6.46561605s
+nameTime: 6.152842554s, lineCountTime: 6.152890566s, donationsTime: 6.152950138s, mostCommonTime: 6.152955223s
+nameTime: 6.49781566s, lineCountTime: 6.497855699s, donationsTime: 6.497919243s, mostCommonTime: 6.497923515s
+nameTime: 6.154062435s, lineCountTime: 6.154105094s, donationsTime: 6.154170383s, mostCommonTime: 6.154178368s
+*/
 
 func main() {
 	// go tool trace trace.pprof
@@ -74,7 +92,6 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
-	names := make([]string, 0, 0)
 	firstNames := make([]string, 0, 0)
 	dates := make([]string, 0, 0)
 
@@ -110,6 +127,9 @@ func main() {
 	mutex := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 
+	namesCounted := false
+	namesCount := 0
+
 	scanner.Scan()
 	for {
 		// get all the names
@@ -127,7 +147,7 @@ func main() {
 					split := strings.SplitN(text, "|", 9) // 10.95
 					e.name = strings.TrimSpace(split[7])
 
-					if e.name != "" {
+					if len(e.name) != 0 {
 						startOfName := strings.Index(e.name, ", ") + 2
 						if endOfName := strings.Index(e.name[startOfName:], " "); endOfName < 0 {
 							e.firstName = e.name[startOfName:]
@@ -140,12 +160,11 @@ func main() {
 					}
 
 					// extract dates
-					chars := strings.TrimSpace(split[4])[:6]
-					e.date = chars[:4] + "-" + chars[4:6]
+					e.date = split[4][:6]
 					collected = append(collected, e)
 				}
-
 				linesPool.Put(linesToProcess)
+
 				mutex.Lock()
 				for _, e0 := range collected {
 					if e0.firstName != "" {
@@ -158,7 +177,19 @@ func main() {
 							common = e0.firstName
 						}
 					}
-					names = append(names, e0.name)
+					if namesCounted == false {
+						namesCount++
+						if namesCount == 1 {
+							fmt.Printf("Name: %s at index: %v\n", e0.name, 0)
+						}
+						if namesCount == 432+1 {
+							fmt.Printf("Name: %s at index: %v\n", e0.name, 432)
+						}
+						if namesCount == 43243+1 {
+							fmt.Printf("Name: %s at index: %v\n", e0.name, 43243)
+							namesCounted = true
+						}
+					}
 					dates = append(dates, e0.date)
 					dateMap[e0.date]++
 				}
@@ -175,13 +206,9 @@ func main() {
 	}
 	wg.Wait()
 
-	fmt.Printf("Name: %s at index: %v\n", names[0], 0)
-	fmt.Printf("Name: %s at index: %v\n", names[432], 432)
-	fmt.Printf("Name: %s at index: %v\n", names[43243], 43243)
-
 	nameTime := time.Since(start)
 	fmt.Printf("Name time: %v\n", nameTime)
-	fmt.Printf("Total file line count: %v\n", len(names))
+	fmt.Printf("Total file line count: %v\n", namesCount)
 	lineCountTime := time.Since(start)
 	fmt.Printf("Line count time: : %v\n", lineCountTime)
 
