@@ -77,8 +77,6 @@ nameTime: 4.420236883s, lineCountTime: 4.420279724s, donationsTime: 4.420337929s
 nameTime: 4.457460186s, lineCountTime: 4.457492907s, donationsTime: 4.457547151s, mostCommonTime: 4.457551674s
 nameTime: 4.435049851s, lineCountTime: 4.43508394s, donationsTime: 4.43513404s, mostCommonTime: 4.435138693s
 
-
-
 */
 
 func main() {
@@ -99,7 +97,6 @@ func main() {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	dates := make([]int, 0, 0)
 
 	start := time.Now()
 
@@ -140,16 +137,17 @@ func main() {
 	scanner.Scan()
 	for {
 		// get all the names
-		line := scanner.Text()
-		lines = append(lines, line)
+		lines = append(lines, scanner.Text())
 
 		willScan := scanner.Scan()
 		if len(lines) == linesChunkLen || !willScan {
-			atomic.AddInt64(&fileLineCount, int64(len(lines)))
+
 			wg.Add(len(lines))
 			linesToProcess := lines // bug
 			go func() {
+				atomic.AddInt64(&fileLineCount, int64(len(linesToProcess)))
 				collected := collectedPool.Get().([]entry)[:0]
+
 				for _, text := range linesToProcess {
 					e := entry{}
 					split := strings.SplitN(text, "|", 9) // 10.95
@@ -175,7 +173,7 @@ func main() {
 
 				mutex.Lock()
 				for _, e0 := range collected {
-					if e0.firstName != "" {
+					if len(e0.firstName) != 0 {
 						ncount := nameMap[e0.firstName] + 1
 						nameMap[e0.firstName] = ncount
 						if ncount > commonCount {
@@ -194,7 +192,6 @@ func main() {
 						}
 						namesCount++
 					}
-					dates = append(dates, e0.date)
 					dateMap[e0.date]++
 				}
 				mutex.Unlock()
