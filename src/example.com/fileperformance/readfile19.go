@@ -160,8 +160,8 @@ func main() {
 						} else {
 							e.firstName = e.name[startOfName : startOfName+endOfName]
 						}
-						if strings.HasSuffix(e.firstName, ",") {
-							e.firstName = strings.Replace(e.firstName, ",", "", -1)
+						if cs := strings.Index(e.firstName, ","); cs > 0 {
+							e.firstName = e.firstName[:cs]
 						}
 					}
 
