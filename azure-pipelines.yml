@@ -19,6 +19,7 @@ steps:
 - script: |
     mkdir -p '$(GOBIN)'
     mkdir -p '$(GOPATH)/pkg'
+    mkdir -p '$(modulePath)'
     shopt -s extglob
     shopt -s dotglob
     echo '##vso[task.prependpath]$(GOBIN)'
