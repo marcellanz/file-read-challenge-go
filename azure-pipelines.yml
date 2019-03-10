@@ -27,7 +27,7 @@ steps:
   displayName: 'Set up the Go workspace'
 
 - script: |
-    go build -v
+    go build -v ./...
   workingDirectory: '$(modulePath)'
   continueOnError: 'true'
   displayName: 'Build app'
