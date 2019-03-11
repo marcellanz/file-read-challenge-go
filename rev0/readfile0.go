@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"os"
 	"regexp"
@@ -11,7 +10,11 @@ import (
 )
 
 func main() {
-	file, err := os.Open(os.Args[1])
+	readfile0(os.Args[1], log.New(os.Stdout, "", log.LstdFlags))
+}
+
+func readfile0(f string, log *log.Logger) {
+	file, err := os.Open(f)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -47,22 +50,22 @@ func main() {
 		dates = append(dates, date)
 	}
 
-	fmt.Printf("Name: %s at index: %v\n", names[0], 0)
-	fmt.Printf("Name: %s at index: %v\n", names[432], 432)
-	fmt.Printf("Name: %s at index: %v\n", names[43243], 43243)
+	log.Printf("Name: %s at index: %v\n", names[0], 0)
+	log.Printf("Name: %s at index: %v\n", names[432], 432)
+	log.Printf("Name: %s at index: %v\n", names[43243], 43243)
 
-	fmt.Printf("Name time: %v\n", time.Since(start))
-	fmt.Printf("Total file line count: %v\n", len(names))
-	fmt.Printf("Line count time: : %v\n", time.Since(start))
+	log.Printf("Name time: %v\n", time.Since(start))
+	log.Printf("Total file line count: %v\n", len(names))
+	log.Printf("Line count time: : %v\n", time.Since(start))
 
 	dateMap := make(map[string]int)
 	for _, date := range dates {
 		dateMap[date] += 1
 	}
 	for k, v := range dateMap {
-		fmt.Printf("Donations per month and year: %v and donation ncount: %v\n", k, v)
+		log.Printf("Donations per month and year: %v and donation ncount: %v\n", k, v)
 	}
-	fmt.Printf("Donations time: : %v\n", time.Since(start))
+	log.Printf("Donations time: : %v\n", time.Since(start))
 
 	// this takes about 7-10 seconds
 	//
@@ -77,6 +80,6 @@ func main() {
 		}
 	}
 
-	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
-	fmt.Printf("Most common name time: %v\n", time.Since(start))
+	log.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
+	log.Printf("Most common name time: %v\n", time.Since(start))
 }
