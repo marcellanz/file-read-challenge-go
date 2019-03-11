@@ -33,28 +33,28 @@ import (
 // Variation7.go rev11 (4k line-chunks channel) on my mac: 33s
 // Variation7.go rev11 (8k line-chunks channel) on my mac: 32s
 // Variation7.go rev11 (32k line-chunks channel) on my mac: 26s
-// Variation7.go rev11 (64k line-chunks channel) on my mac: 23s
+// Variation7.go rev11 (64k line-chunks channel) on my mac: 23s  .. 21.9s
 
 // Variation7.go rev12 (1k entry-chunks channel) on my mac: 24s
 // Variation7.go rev12 (8k entry-chunks channel) on my mac: 23s
-// Variation7.go rev12 (64k entry-chunks channel) on my mac: 24s
+// Variation7.go rev12 (64k entry-chunks channel) on my mac: 24s .. 12.3s
 
 // Variation7.go rev13 (1k rev12 mutex) on my mac: 13s
-// Variation7.go rev13 (64k rev12 mutex) on my mac: 11.5s
+// Variation7.go rev13 (64k rev12 mutex) on my mac: 11.5s  11.59s
 
 // Variation7.go rev15 (64k rev15 common-name in loop) on my mac: 10.5s
-// Variation7.go rev15 (64k rev15 common-name + date in loop) on my mac: 9.8s (min) 10.5 - 11.0
+// Variation7.go rev15 (64k rev15 common-name + date in loop) on my mac: 9.8s (min) 10.5 - 11.0 .. 10.2
 
-// Variation7.go rev16 (64k rev15 + sync.Pool) on my mac: 9.8s (min)... 10.0 - 10.5
+// Variation7.go rev16 (64k rev15 + sync.Pool) on my mac: 9.8s (min)... 10.0 - 10.5 .. 10.3
 
 // Variation7.go rev17 (64k rev16 + regex bug) on my mac: 9.15 (min)
-// Variation7.go rev17 (64k rev16 + simpler regex) on my mac: 8.32 (min) 8.7..9.2 with about 80% CPU
+// Variation7.go rev17 (64k rev16 + simpler regex) on my mac: 8.32 (min) 8.7..9.2 with about 80% CPU ... 9.2
 
-// Variation7.go rev18 (64k rev17 + no regex) on my mac: 6.46 (min) 6.8 - 7.1 with about 50% CPU
+// Variation7.go rev18 (64k rev17 + no regex) on my mac: 6.46 (min) 6.8 - 7.1 with about 50% CPU  .... 6.6
 
 // Variation7.go rev0.1 port mac + no regex and date/name inner loop my mac: 16.6
 
-// Variation7.go rev19 (64k rev18 + rearrangements: do not format date, name at index 'in-loop') on my mac: 4.10
+// Variation7.go rev19 (64k rev18 + rearrangements: do not format date, name at index 'in-loop') on my mac: 4.10 => 18Mio Lines:  3.966008867s
 
 /*
 nameTime: 7.665251714s, lineCountTime: 7.668233675s, donationsTime: 7.668921714s, mostCommonTime: 7.66892908s
@@ -77,6 +77,13 @@ nameTime: 4.420236883s, lineCountTime: 4.420279724s, donationsTime: 4.420337929s
 nameTime: 4.457460186s, lineCountTime: 4.457492907s, donationsTime: 4.457547151s, mostCommonTime: 4.457551674s
 nameTime: 4.435049851s, lineCountTime: 4.43508394s, donationsTime: 4.43513404s, mostCommonTime: 4.435138693s
 
+
+GOGC=200
+
+linesChunkPoolAllocated: 182, collectedPoolAllocated: 57
+nameTime: 3.956710183s, lineCountTime: 3.956710263s, donationsTime: 3.956710342s, mostCommonTime: 3.956710421s
+
+
 */
 
 func main() {
@@ -90,26 +97,27 @@ func main() {
 	//pprof.StartCPUProfile(os.Stderr)
 	//defer pprof.StopCPUProfile()
 
+	start := time.Now()
+
 	file, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer file.Close()
+	defer func() {
+		if e := file.Close(); e != nil {
+			panic("could not clode file")
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 
-	start := time.Now()
-
 	nameMap := make(map[string]int)
 	dateMap := make(map[int]int)
-	common := ""
+	commonName := ""
 	commonCount := 0
-
-	type entry struct {
-		firstName string
-		name      string
-		date      int
-	}
+	namesCounted := false
+	namesCount := 0
+	fileLineCount := int64(0)
 
 	linesChunkLen := 64 * 1024
 	linesChunkPoolAllocated := int64(0)
@@ -119,6 +127,11 @@ func main() {
 		return e
 	}}
 
+	type entry struct {
+		firstName string
+		name      string
+		date      int
+	}
 	collectedPoolAllocated := int64(0)
 	collectedPool := sync.Pool{New: func() interface{} {
 		e := make([]entry, 0, linesChunkLen)
@@ -130,10 +143,6 @@ func main() {
 	mutex := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 
-	namesCounted := false
-	namesCount := 0
-	fileLineCount := int64(0)
-
 	scanner.Scan()
 	for {
 		// get all the names
@@ -141,9 +150,8 @@ func main() {
 
 		willScan := scanner.Scan()
 		if len(lines) == linesChunkLen || !willScan {
-
-			wg.Add(len(lines))
 			linesToProcess := lines // bug
+			wg.Add(len(linesToProcess))
 			go func() {
 				atomic.AddInt64(&fileLineCount, int64(len(linesToProcess)))
 				collected := collectedPool.Get().([]entry)[:0]
@@ -152,6 +160,7 @@ func main() {
 					e := entry{}
 					split := strings.SplitN(text, "|", 9) // 10.95
 					e.name = strings.TrimSpace(split[7])
+					//e.name = split[7]
 
 					if len(e.name) != 0 {
 						startOfName := strings.Index(e.name, ", ") + 2
@@ -178,7 +187,7 @@ func main() {
 						nameMap[e0.firstName] = ncount
 						if ncount > commonCount {
 							commonCount = ncount
-							common = e0.firstName
+							commonName = e0.firstName
 						}
 					}
 					if namesCounted == false {
@@ -216,7 +225,7 @@ func main() {
 	}
 	fmt.Printf("Donations time: : %v\n", time.Since(start))
 
-	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
+	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", commonName, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
 
 	// other stats

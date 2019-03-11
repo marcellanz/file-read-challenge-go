@@ -76,9 +76,8 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
-	names := make([][64]byte, 0, 0)
-	firstNames := make([][64]byte, 0, 0)
-	dates := make([][16]byte, 0, 0)
+	names := make([][12]byte, 0, 0)
+	dates := make([][6]byte, 0, 0)
 
 	start := time.Now()
 
@@ -88,9 +87,9 @@ func main() {
 	commonCount := 0
 
 	type entry struct {
-		firstName [64]byte
-		name      [64]byte
-		date      [16]byte
+		firstName [12]byte
+		name      [12]byte
+		date      [6]byte
 	}
 
 	linesChunkLen := 64 * 1024
@@ -113,6 +112,10 @@ func main() {
 
 	var lines = linesPool.Get().([][512]byte)
 	current := 0
+
+	maxLenName := 0
+	maxLenFirstName := 0
+
 	scanner.Scan()
 	for {
 		// get all the names
@@ -122,8 +125,6 @@ func main() {
 		willScan := scanner.Scan()
 
 		if current == linesChunkLen || !willScan {
-			//fmt.Printf("linesChunkPoolAllocated: %v, collectedPoolAllocated: %v\n", linesChunkPoolAllocated, collectedPoolAllocated)
-
 			linesToProcess := lines // bug
 			wg.Add(len(linesToProcess))
 			current = 0
@@ -132,9 +133,12 @@ func main() {
 				for _, byteLine := range linesToProcess {
 					e := entry{}
 					split := bytes.SplitN(byteLine[:], []byte("|"), 9) // 10.95
-					copy(e.name[:], bytes.TrimSpace(split[7]))
 
-					if len(e.name) != 0 {
+					if l := len(bytes.TrimSpace(split[7])); l > maxLenName {
+						maxLenName = l
+					}
+
+					if copy(e.name[:], bytes.TrimSpace(split[7])) != 0 {
 						startOfName := bytes.Index(e.name[:], []byte(", ")) + 2
 						if endOfName := bytes.Index(e.name[startOfName:], []byte(" ")); endOfName < 0 {
 							copy(e.firstName[:], e.name[startOfName:])
@@ -144,6 +148,7 @@ func main() {
 						if bytes.HasSuffix(e.firstName[:], []byte(",")) {
 							copy(e.firstName[:], bytes.Replace(e.firstName[:], []byte(","), []byte(""), -1))
 						}
+
 					}
 
 					// extract dates
@@ -155,8 +160,6 @@ func main() {
 				mutex.Lock()
 				for _, e0 := range collected {
 					if len(e0.firstName) != 0 {
-						firstNames = append(firstNames, e0.firstName)
-
 						fns := string(e0.firstName[:])
 						ncount := nameMap[fns] + 1
 						nameMap[fns] = ncount
@@ -205,4 +208,18 @@ func main() {
 	// other stats
 	fmt.Printf("linesChunkPoolAllocated: %v, collectedPoolAllocated: %v\n", linesChunkPoolAllocated, collectedPoolAllocated)
 	fmt.Printf("nameTime: %v, lineCountTime: %v, donationsTime: %v, mostCommonTime: %v\n", nameTime, lineCountTime, donationsTime, mostCommonTime)
+
+	fmt.Printf("maxLenName: %v\n", maxLenName)
+	fmt.Printf("maxLenFirstName: %v\n", maxLenFirstName)
+}
+
+func m() {
+	b := make([]byte, 5, 5)
+	copy(b, []byte("yes"))
+
+	if len(b) == 0 {
+		fmt.Printf("b is empty: %v", b)
+	} else {
+		fmt.Printf("b: %v", b)
+	}
 }

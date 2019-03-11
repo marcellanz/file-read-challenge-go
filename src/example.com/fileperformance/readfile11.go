@@ -58,7 +58,7 @@ func main() {
 	}()
 
 	ii := 0
-	chunkLen := 256 * 1024 //4 * 1024 // 1024 => 5.9 vs 4k => 5.1
+	chunkLen := 64 * 1024 //4 * 1024 // 1024 => 5.9 vs 4k => 5.1
 	chunks := make([]string, 0, 0)
 	for scanner.Scan() {
 		// get all the names

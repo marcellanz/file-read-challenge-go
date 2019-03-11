@@ -11,7 +11,11 @@ import (
 )
 
 func main() {
-	file, err := os.Open(os.Args[1])
+	readfile0(os.Args[1])
+}
+
+func readfile0(f string) {
+	file, err := os.Open(f)
 	if err != nil {
 		log.Fatal(err)
 	}
