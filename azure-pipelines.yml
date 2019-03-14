@@ -28,7 +28,7 @@ steps:
 
   - script: |
       pwd
-      ls
+      bash build.sh
     workingDirectory: '$(modulePath)'
     continueOnError: 'false'
     displayName: 'Build app'
