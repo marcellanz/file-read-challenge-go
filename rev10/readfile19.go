@@ -1,4 +1,4 @@
-package rev10
+package main
 
 import (
 	"bufio"
