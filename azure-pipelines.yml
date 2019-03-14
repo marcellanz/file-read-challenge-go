@@ -34,12 +34,6 @@ steps:
     displayName: 'Get dependencies'
 
   - script: |
-      pwd
-      ls -al
-      ls -al ../
-      ls -al ../../
-      ls -al ../../../
-      ls -al ../../../../
       bash build.sh
     workingDirectory: '$(modulePath)'
     continueOnError: 'false'
