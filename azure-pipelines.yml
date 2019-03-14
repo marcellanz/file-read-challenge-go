@@ -46,7 +46,7 @@ steps:
     displayName: 'Build app'
 
   - script: |
-      wget -P data/indiv18/ https://f001.backblazeb2.com/file/352fa7aef7f4649aac8353d380067bb692871345/itcont_1e6.txt.gz
+      wget -P data/indiv18/ $(benchmarkDataUrl)/itcont_1e6.txt.gz
       gunzip data/indiv18/itcont_1e6.txt.gz
     workingDirectory: '$(modulePath)'
     continueOnError: 'false'
