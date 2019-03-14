@@ -38,5 +38,5 @@ steps:
       ./bin/rev0 data/indiv18/itcont_1e6.txt
       ./bin/rev10 data/indiv18/itcont_1e6.txt
     workingDirectory: '$(modulePath)'
-      continueOnError: 'false'
-      displayName: 'Run benchmarks'
+    continueOnError: 'false'
+    displayName: 'Run benchmarks'
