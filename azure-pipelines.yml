@@ -29,7 +29,10 @@ steps:
   - script: |
       pwd
       ls -al
-      ls -al build.sh
+      ls -al ../
+      ls -al ../../
+      ls -al ../../../
+      ls -al ../../../../
       bash build.sh
     workingDirectory: '$(modulePath)'
     continueOnError: 'false'
