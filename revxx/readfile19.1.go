@@ -1,4 +1,4 @@
-package main
+package revxx
 
 import (
 	"bufio"
@@ -52,7 +52,7 @@ import (
 
 // Variation7.go rev19 (64k rev18 + minor rearrangements) on my mac:
 
-func main() {
+func main191() {
 	// go tool trace trace.pprof
 	//
 	//trace.Start(os.Stderr)

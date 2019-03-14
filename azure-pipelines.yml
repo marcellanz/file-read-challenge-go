@@ -27,16 +27,15 @@ steps:
     displayName: 'Set up the Go workspace'
 
   - script: |
-      mkdir bin/
-      GOBIN=`pwd`/bin go install ./...
+      ./build.sh
     workingDirectory: '$(modulePath)'
     continueOnError: 'false'
     displayName: 'Build app'
 
   - script: |
-      gunzip data/itcont_1e6.txt.gz
-      ./bin/rev0 data/itcont_1e6.txt
-      ./bin/rev10 data/itcont_1e6.txt
+      gunzip data/indiv18/itcont_1e6.txt.gz
+      ./bin/rev0 data/indiv18/itcont_1e6.txt
+      ./bin/rev10 data/indiv18/itcont_1e6.txt
     workingDirectory: '$(modulePath)'
       continueOnError: 'false'
       displayName: 'Build app'

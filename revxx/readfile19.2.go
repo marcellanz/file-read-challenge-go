@@ -1,4 +1,4 @@
-package main
+package revxx
 
 import (
 	"bufio"
@@ -103,7 +103,7 @@ func (lr *LimitedReader) Read(p []byte) (n int, err error) {
 	return i, err
 }
 
-func main() {
+func main192() {
 	// go tool trace trace.pprof
 	//
 	//trace.Start(os.Stderr)
@@ -145,7 +145,7 @@ func main() {
 	}
 
 	scanner0 := bufio.NewScanner(file0)
-	scanner1 := bufio.NewScanner(&LimitedReader{f: file1, limit: splitIndex})
+	//scanner1 := bufio.NewScanner(&LimitedReader{f: file1, limit: splitIndex})
 
 	start := time.Now()
 
