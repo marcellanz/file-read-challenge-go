@@ -28,6 +28,8 @@ steps:
 
   - script: |
       pwd
+      ls -al
+      ls -al build.sh
       bash build.sh
     workingDirectory: '$(modulePath)'
     continueOnError: 'false'
