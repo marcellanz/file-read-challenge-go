@@ -1,4 +1,4 @@
-package main
+package rev10
 
 import (
 	"bufio"
@@ -28,12 +28,19 @@ import (
 
 // Variation7.go naive on my mac: 38s (+40% to Variation7), rerun later: 27-28s
 // Variation7.go rev10 (stupid channel) on my mac: 12m6s :-o
+
+// The most common first name is: JOHN and it occurs: 475350 times.
+// Most common name time: 23m23.187150436s
+
 // Variation7.go rev11 (entries channel) on my mac: 39s
 // Variation7.go rev11 (1k line-chunks channel) on my mac: 39s
 // Variation7.go rev11 (4k line-chunks channel) on my mac: 33s
 // Variation7.go rev11 (8k line-chunks channel) on my mac: 32s
 // Variation7.go rev11 (32k line-chunks channel) on my mac: 26s
 // Variation7.go rev11 (64k line-chunks channel) on my mac: 23s  .. 21.9s
+
+// The most common first name is: JOHN and it occurs: 474726 times.
+// Most common name time: 46.80972581s
 
 // Variation7.go rev12 (1k entry-chunks channel) on my mac: 24s
 // Variation7.go rev12 (8k entry-chunks channel) on my mac: 23s
@@ -103,13 +110,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer func() {
-		if e := file.Close(); e != nil {
-			panic("could not clode file")
-		}
-	}()
-
-	scanner := bufio.NewScanner(file)
 
 	nameMap := make(map[string]int)
 	dateMap := make(map[int]int)
@@ -143,7 +143,9 @@ func main() {
 	mutex := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 
+	scanner := bufio.NewScanner(file)
 	scanner.Scan()
+
 	for {
 		// get all the names
 		lines = append(lines, scanner.Text())
@@ -160,7 +162,6 @@ func main() {
 					e := entry{}
 					split := strings.SplitN(text, "|", 9) // 10.95
 					e.name = strings.TrimSpace(split[7])
-					//e.name = split[7]
 
 					if len(e.name) != 0 {
 						startOfName := strings.Index(e.name, ", ") + 2
