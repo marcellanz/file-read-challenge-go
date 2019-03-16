@@ -47,7 +47,7 @@ steps:
     displayName: 'Prepare benchmarks'
 
   - script: |
-    ./run_all.sh data/indiv18/itcont_1e6.txt
-workingDirectory: '$(modulePath)'
+      ./run_all.sh data/indiv18/itcont_1e6.txt
+    workingDirectory: '$(modulePath)'
     continueOnError: 'false'
     displayName: 'Run benchmarks'
