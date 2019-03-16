@@ -25,7 +25,7 @@ func main() {
 	names := make([]string, 0, 0)
 	firstNames := make([]string, 0, 0)
 	dates := make([]string, 0, 0)
-	common := ""
+	commonName := ""
 	commonCount := 0
 
 	scanner := bufio.NewScanner(file)
@@ -38,13 +38,13 @@ func main() {
 	mutex := sync.Mutex{}
 	wg := sync.WaitGroup{}
 
-	chunkLen := 64 * 1024
+	linesChunkLen := 64 * 1024
 	lines := make([]string, 0, 0)
 	scanner.Scan()
 	for {
 		lines = append(lines, scanner.Text())
 		willScan := scanner.Scan()
-		if len(lines) == chunkLen || !willScan {
+		if len(lines) == linesChunkLen || !willScan {
 			toProcess := lines
 			wg.Add(len(toProcess))
 			go func() {
@@ -76,7 +76,7 @@ func main() {
 				wg.Add(-len(entries))
 				mutex.Unlock()
 			}()
-			lines = make([]string, 0, chunkLen)
+			lines = make([]string, 0, linesChunkLen)
 		}
 		if !willScan {
 			break
@@ -112,12 +112,12 @@ func main() {
 		count = nameMap[name] + 1
 		nameMap[name] = count
 		if count > commonCount {
-			common = name
+			commonName = name
 			commonCount = count
 		}
 	}
 
-	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
+	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", commonName, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
 	fmt.Fprintf(os.Stderr, "revision: %v, runtime: %v\n", filepath.Base(os.Args[0]), time.Since(start))
 }

@@ -26,7 +26,7 @@ func main() {
 	names := make([]string, 0, 0)
 	firstNames := make([]string, 0, 0)
 	dates := make([]string, 0, 0)
-	common := ""
+	commonName := ""
 	commonCount := 0
 
 	scanner := bufio.NewScanner(file)
@@ -91,7 +91,7 @@ func main() {
 						count := nameMap[entry.firstName]
 						nameMap[entry.firstName] = count + 1
 						if count+1 > commonCount {
-							common = entry.firstName
+							commonName = entry.firstName
 							commonCount = count + 1
 						}
 					}
@@ -129,7 +129,7 @@ func main() {
 	fmt.Printf("Donations time: : %v\n", time.Since(start))
 
 	// report c4: most common firstName
-	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
+	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", commonName, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
 
 	// other stats
