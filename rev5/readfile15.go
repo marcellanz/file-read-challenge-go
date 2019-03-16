@@ -30,70 +30,69 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
+	nameMap := make(map[string]int)
+	dateMap := make(map[string]int)
+
 	type entry struct {
 		firstName string
 		name      string
 		date      string
-		wg        *sync.WaitGroup
 	}
-	entriesC := make(chan []entry)
+	mutex := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 
-	go func() {
-		for {
-			select {
-			case entries, ok := <-entriesC:
-				if ok {
-					for _, entry := range entries {
-						if entry.firstName != "" {
-							firstNames = append(firstNames, entry.firstName)
-						}
-						names = append(names, entry.name)
-						dates = append(dates, entry.date)
-						entry.wg.Done()
-					}
-				}
-			}
-		}
-	}()
-
-	chunkLen := 64 * 1024
-	lines := make([]string, 0, 0)
+	linesChunkLen := 64 * 1024
+	lines := make([]string, 0, linesChunkLen)
 	scanner.Scan()
 	for {
 		lines = append(lines, scanner.Text())
 		willScan := scanner.Scan()
-		if len(lines) == chunkLen || !willScan {
+		if len(lines) == linesChunkLen || !willScan {
 			toProcess := lines
 			wg.Add(len(toProcess))
 			go func() {
 				entries := make([]entry, 0, len(toProcess))
 				for _, text := range toProcess {
 					// get all the names
-					e := entry{wg: &wg}
+					entry := entry{}
 					split := strings.SplitN(text, "|", 9)
 					name := strings.TrimSpace(split[7])
-					e.name = name
+					entry.name = name
 
-					// extract first names
 					if matches := firstNamePat.FindAllStringSubmatch(name, 1); len(matches) > 0 {
-						e.firstName = matches[0][1]
+						entry.firstName = matches[0][1]
 					}
 					// extract dates
 					chars := strings.TrimSpace(split[4])[:6]
-					e.date = chars[:4] + "-" + chars[4:6]
-					entries = append(entries, e)
+					entry.date = chars[:4] + "-" + chars[4:6]
+					entries = append(entries, entry)
 				}
-				entriesC <- entries
+				mutex.Lock()
+				for _, entry := range entries {
+					if entry.firstName != "" {
+						firstNames = append(firstNames, entry.firstName)
+
+						count := nameMap[entry.firstName]
+						nameMap[entry.firstName] = count + 1
+						if count+1 > commonCount {
+							common = entry.firstName
+							commonCount = count + 1
+						}
+					}
+					names = append(names, entry.name)
+					dates = append(dates, entry.date)
+					dateMap[entry.date]++
+				}
+				wg.Add(-len(entries))
+				mutex.Unlock()
 			}()
-			lines = make([]string, 0, chunkLen)
+			lines = make([]string, 0, linesChunkLen)
 		}
 		if !willScan {
 			break
 		}
 	}
 	wg.Wait()
-	close(entriesC)
 
 	// report c2: names at index
 	fmt.Printf("Name: %s at index: %v\n", names[0], 0)
@@ -106,27 +105,12 @@ func main() {
 	fmt.Printf("Line count time: : %v\n", time.Since(start))
 
 	// report c3: donation frequency
-	dateMap := make(map[string]int)
-	for _, date := range dates {
-		dateMap[date] += 1
-	}
 	for k, v := range dateMap {
-		fmt.Printf("Donations per month and year: %v and donation count: %v\n", k, v)
+		fmt.Printf("Donations per month and year: %v and donation ncount: %v\n", k, v)
 	}
 	fmt.Printf("Donations time: : %v\n", time.Since(start))
 
 	// report c4: most common firstName
-	nameMap := make(map[string]int)
-	ncount := 0 // new count
-	for _, name := range firstNames {
-		ncount = nameMap[name] + 1
-		nameMap[name] = ncount
-		if ncount > commonCount {
-			common = name
-			commonCount = ncount
-		}
-	}
-
 	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
 	fmt.Fprintf(os.Stderr, "revision: %v, runtime: %v\n", filepath.Base(os.Args[0]), time.Since(start))

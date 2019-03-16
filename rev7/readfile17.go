@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -21,7 +22,7 @@ func main() {
 	}
 	defer file.Close()
 
-	firstNamePat := regexp.MustCompile(", \\s*([^, ]+)")
+	firstNamePat := regexp.MustCompile(", \\s*[^, ]+")
 	names := make([]string, 0, 0)
 	firstNames := make([]string, 0, 0)
 	dates := make([]string, 0, 0)
@@ -30,35 +31,52 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
+	nameMap := make(map[string]int)
+	dateMap := make(map[string]int)
+
 	type entry struct {
 		firstName string
 		name      string
 		date      string
 	}
-	mutex := sync.Mutex{}
+
+	linesChunkLen := 64 * 1024
+	linesChunkPoolAllocated := int64(0)
+	linesPool := sync.Pool{New: func() interface{} {
+		lines := make([]string, 0, linesChunkLen)
+		atomic.AddInt64(&linesChunkPoolAllocated, 1)
+		return lines
+	}}
+
+	entriesPoolAllocated := int64(0)
+	entriesPool := sync.Pool{New: func() interface{} {
+		entries := make([]entry, 0, linesChunkLen)
+		atomic.AddInt64(&entriesPoolAllocated, 1)
+		return entries
+	}}
+
+	lines := linesPool.Get().([]string)[:0]
+	mutex := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 
-	chunkLen := 64 * 1024
-	lines := make([]string, 0, 0)
 	scanner.Scan()
 	for {
 		lines = append(lines, scanner.Text())
 		willScan := scanner.Scan()
-		if len(lines) == chunkLen || !willScan {
-			toProcess := lines
-			wg.Add(len(toProcess))
+		if len(lines) == linesChunkLen || !willScan {
+			linesToProcess := lines
+			wg.Add(len(linesToProcess))
 			go func() {
-				entries := make([]entry, 0, len(toProcess))
-				for _, text := range toProcess {
+				entries := entriesPool.Get().([]entry)[:0]
+				for _, text := range linesToProcess {
 					// get all the names
 					entry := entry{}
 					split := strings.SplitN(text, "|", 9)
 					name := strings.TrimSpace(split[7])
 					entry.name = name
 
-					// extract first names
-					if matches := firstNamePat.FindAllStringSubmatch(name, 1); len(matches) > 0 {
-						entry.firstName = matches[0][1]
+					if matched := firstNamePat.FindString(name); matched != "" {
+						entry.firstName = matched[2:]
 					}
 					// extract dates
 					chars := strings.TrimSpace(split[4])[:6]
@@ -69,14 +87,24 @@ func main() {
 				for _, entry := range entries {
 					if entry.firstName != "" {
 						firstNames = append(firstNames, entry.firstName)
+
+						count := nameMap[entry.firstName]
+						nameMap[entry.firstName] = count + 1
+						if count+1 > commonCount {
+							common = entry.firstName
+							commonCount = count + 1
+						}
 					}
 					names = append(names, entry.name)
 					dates = append(dates, entry.date)
+					dateMap[entry.date]++
 				}
-				wg.Add(-len(entries))
+				entriesPool.Put(entries)
+				linesPool.Put(linesToProcess)
 				mutex.Unlock()
+				wg.Add(-len(entries))
 			}()
-			lines = make([]string, 0, chunkLen)
+			lines = linesPool.Get().([]string)[:0]
 		}
 		if !willScan {
 			break
@@ -95,29 +123,16 @@ func main() {
 	fmt.Printf("Line count time: : %v\n", time.Since(start))
 
 	// report c3: donation frequency
-	dateMap := make(map[string]int)
-	for _, date := range dates {
-		dateMap[date] += 1
-	}
 	for k, v := range dateMap {
-		fmt.Printf("Donations per month and year: %v and donation count: %v\n", k, v)
+		fmt.Printf("Donations per month and year: %v and donation ncount: %v\n", k, v)
 	}
-	donationsTime := time.Since(start)
-	fmt.Printf("Donations time: : %v\n", donationsTime)
+	fmt.Printf("Donations time: : %v\n", time.Since(start))
 
 	// report c4: most common firstName
-	nameMap := make(map[string]int)
-	count := 0
-	for _, name := range firstNames {
-		count = nameMap[name] + 1
-		nameMap[name] = count
-		if count > commonCount {
-			common = name
-			commonCount = count
-		}
-	}
-
 	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
+
+	// other stats
+	fmt.Printf("linesChunkPoolAllocated: %v, entriesPoolAllocated: %v\n", linesChunkPoolAllocated, entriesPoolAllocated)
 	fmt.Fprintf(os.Stderr, "revision: %v, runtime: %v\n", filepath.Base(os.Args[0]), time.Since(start))
 }

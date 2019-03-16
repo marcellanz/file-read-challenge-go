@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 )
 
 func main() {
+	start := time.Now()
 
 	file, err := os.Open(os.Args[1])
 	if err != nil {
@@ -19,18 +21,14 @@ func main() {
 	}
 	defer file.Close()
 
-	namePat := regexp.MustCompile(", \\s*([^, ]+)")
+	firstNamePat := regexp.MustCompile(", \\s*([^, ]+)")
 	names := make([]string, 0, 0)
 	firstNames := make([]string, 0, 0)
 	dates := make([]string, 0, 0)
-
-	start := time.Now()
-
-	scanner := bufio.NewScanner(file)
-
-	nameMap := make(map[string]int)
 	common := ""
 	commonCount := 0
+
+	scanner := bufio.NewScanner(file)
 
 	type entry struct {
 		firstName string
@@ -44,39 +42,38 @@ func main() {
 	go func() {
 		for {
 			select {
-			case e, ok := <-entries:
+			case entry, ok := <-entries:
 				if ok {
-					if e.firstName != "" {
-						firstNames = append(firstNames, e.firstName)
+					if entry.firstName != "" {
+						firstNames = append(firstNames, entry.firstName)
 					}
-					names = append(names, e.name)
-					dates = append(dates, e.date)
-					e.wg.Done()
+					names = append(names, entry.name)
+					dates = append(dates, entry.date)
+					entry.wg.Done()
 				}
 			}
 		}
 	}()
 
-	ii := 0
-	chunkLen := 64 * 1024 //4 * 1024 // 1024 => 5.9 vs 4k => 5.1
-	chunks := make([]string, 0, 0)
+	chunkLen := 64 * 1024
+	lines := make([]string, 0, 0)
 	for scanner.Scan() {
-		// get all the names
 		line := scanner.Text()
-		chunks = append(chunks, line)
+		lines = append(lines, line)
 
-		if len(chunks) == chunkLen {
-			wg.Add(len(chunks))
-			process := chunks // bug
+		if len(lines) == chunkLen {
+			wg.Add(len(lines))
+			process := lines
 			go func() {
 				for _, text := range process {
+					// get all the names
 					e := entry{wg: &wg}
-					split := strings.SplitN(text, "|", 9) // 10.95
+					split := strings.SplitN(text, "|", 9)
 					name := strings.TrimSpace(split[7])
 					e.name = name
 
 					// extract first names
-					if matches := namePat.FindAllStringSubmatch(name, 1); len(matches) > 0 {
+					if matches := firstNamePat.FindAllStringSubmatch(name, 1); len(matches) > 0 {
 						e.firstName = matches[0][1]
 					}
 					// extract dates
@@ -85,38 +82,37 @@ func main() {
 					entries <- e
 				}
 			}()
-			chunks = make([]string, 0, 0) // bug
+			lines = make([]string, 0, chunkLen)
 		}
-		ii++
 	}
 	wg.Wait()
 	close(entries)
 
+	// report c2: names at index
 	fmt.Printf("Name: %s at index: %v\n", names[0], 0)
 	fmt.Printf("Name: %s at index: %v\n", names[432], 432)
 	fmt.Printf("Name: %s at index: %v\n", names[43243], 43243)
-
 	fmt.Printf("Name time: %v\n", time.Since(start))
+
+	// report c1: total number of lines
 	fmt.Printf("Total file line count: %v\n", len(names))
 	fmt.Printf("Line count time: : %v\n", time.Since(start))
 
+	// report c3: donation frequency
 	dateMap := make(map[string]int)
 	for _, date := range dates {
 		dateMap[date] += 1
 	}
 	for k, v := range dateMap {
-		fmt.Printf("Donations per month and year: %v and donation ncount: %v\n", k, v)
+		fmt.Printf("Donations per month and year: %v and donation count: %v\n", k, v)
 	}
 	fmt.Printf("Donations time: : %v\n", time.Since(start))
 
-	// this takes about 7-10 seconds
-	//
-	ccount := 0 // current count
+	// report c4: most common firstName
+	nameMap := make(map[string]int)
 	ncount := 0 // new count
 	for _, name := range firstNames {
-		ccount = nameMap[name]
-
-		ncount = ccount + 1
+		ncount = nameMap[name] + 1
 		nameMap[name] = ncount
 		if ncount > commonCount {
 			common = name
@@ -126,4 +122,5 @@ func main() {
 
 	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", common, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
+	fmt.Fprintf(os.Stderr, "revision: %v, runtime: %v\n", filepath.Base(os.Args[0]), time.Since(start))
 }
