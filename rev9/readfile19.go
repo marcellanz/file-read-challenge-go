@@ -14,6 +14,15 @@ import (
 )
 
 func main() {
+	// go tool trace trace.pprof
+	//
+	//trace.Start(os.Stderr)
+	//defer trace.Stop()
+
+	// go tool pprof cpu.pprof
+	//pprof.StartCPUProfile(os.Stderr)
+	//defer pprof.StopCPUProfile()
+
 	start := time.Now()
 
 	file, err := os.Open(os.Args[1])

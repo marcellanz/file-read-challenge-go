@@ -118,5 +118,5 @@ func main() {
 
 	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", commonName, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
-	fmt.Fprintf(os.Stderr, "revision: %v\n", filepath.Base(os.Args[0]), time.Since(start))
+	fmt.Fprintf(os.Stderr, "revision: %v, runtime: %v\n", filepath.Base(os.Args[0]), time.Since(start))
 }
