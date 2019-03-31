@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,39 +12,26 @@ import (
 )
 
 func main() {
-	// go tool trace trace.pprof
-	//
-	//trace.Start(os.Stderr)
-	//defer trace.Stop()
-
-	// go tool pprof cpu.pprof
-	//pprof.StartCPUProfile(os.Stderr)
-	//defer pprof.StopCPUProfile()
-
 	start := time.Now()
-
 	file, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
 
+	names := make([]string, 0)
+	firstNames := make([]string, 0)
+	dates := make([]string, 0)
 	commonName := ""
 	commonCount := 0
-
 	scanner := bufio.NewScanner(file)
-
 	nameMap := make(map[string]int)
-	dateMap := make(map[int]int)
-
-	namesCounted := false
-	namesCount := 0
-	fileLineCount := int64(0)
+	dateMap := make(map[string]int)
 
 	type entry struct {
 		firstName string
 		name      string
-		date      int
+		date      string
 	}
 
 	linesChunkLen := 64 * 1024
@@ -56,6 +41,7 @@ func main() {
 		atomic.AddInt64(&linesChunkPoolAllocated, 1)
 		return lines
 	}}
+	lines := linesPool.Get().([]string)[:0]
 
 	entriesPoolAllocated := int64(0)
 	entriesPool := sync.Pool{New: func() interface{} {
@@ -63,8 +49,6 @@ func main() {
 		atomic.AddInt64(&entriesPoolAllocated, 1)
 		return entries
 	}}
-
-	lines := linesPool.Get().([]string)[:0]
 	mutex := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 
@@ -76,57 +60,50 @@ func main() {
 			linesToProcess := lines
 			wg.Add(len(linesToProcess))
 			go func() {
-				atomic.AddInt64(&fileLineCount, int64(len(linesToProcess)))
 				entries := entriesPool.Get().([]entry)[:0]
 				for _, text := range linesToProcess {
 					// get all the names
 					entry := entry{}
 					split := strings.SplitN(text, "|", 9)
-					entry.name = strings.TrimSpace(split[7])
+					name := strings.TrimSpace(split[7])
+					entry.name = name
 
-					if len(entry.name) != 0 {
-						startOfName := strings.Index(entry.name, ", ") + 2
-						if endOfName := strings.Index(entry.name[startOfName:], " "); endOfName < 0 {
-							entry.firstName = entry.name[startOfName:]
+					// extract first names
+					if name != "" {
+						startOfName := strings.Index(name, ", ") + 2
+						if endOfName := strings.Index(name[startOfName:], " "); endOfName < 0 {
+							entry.firstName = name[startOfName:]
 						} else {
-							entry.firstName = entry.name[startOfName : startOfName+endOfName]
+							entry.firstName = name[startOfName : startOfName+endOfName]
 						}
-						if cs := strings.Index(entry.firstName, ","); cs > 0 {
-							entry.firstName = entry.firstName[:cs]
+						if strings.HasSuffix(entry.firstName, ",") {
+							entry.firstName = strings.Replace(entry.firstName, ",", "", -1)
 						}
 					}
-
 					// extract dates
-					entry.date, _ = strconv.Atoi(split[4][:6])
+					chars := strings.TrimSpace(split[4])[:6]
+					entry.date = chars[:4] + "-" + chars[4:6]
 					entries = append(entries, entry)
 				}
-				linesPool.Put(linesToProcess)
 				mutex.Lock()
 				for _, entry := range entries {
-					if len(entry.firstName) != 0 {
-						count := nameMap[entry.firstName] + 1
-						nameMap[entry.firstName] = count
-						if count > commonCount {
-							commonCount = count
+					if entry.firstName != "" {
+						firstNames = append(firstNames, entry.firstName)
+						nameCount := nameMap[entry.firstName]
+						nameMap[entry.firstName] = nameCount + 1
+						if nameCount+1 > commonCount {
 							commonName = entry.firstName
+							commonCount = nameCount + 1
 						}
 					}
-					if namesCounted == false {
-						if namesCount == 0 {
-							fmt.Printf("Name: %s at index: %v\n", entry.name, 0)
-						} else if namesCount == 432 {
-							fmt.Printf("Name: %s at index: %v\n", entry.name, 432)
-						} else if namesCount == 43243 {
-							fmt.Printf("Name: %s at index: %v\n", entry.name, 43243)
-							namesCounted = true
-						}
-						namesCount++
-					}
+					names = append(names, entry.name)
+					dates = append(dates, entry.date)
 					dateMap[entry.date]++
 				}
-				mutex.Unlock()
 				entriesPool.Put(entries)
+				linesPool.Put(linesToProcess)
 				wg.Add(-len(entries))
+				mutex.Unlock()
 			}()
 			lines = linesPool.Get().([]string)[:0]
 		}
@@ -137,23 +114,22 @@ func main() {
 	wg.Wait()
 
 	// report c2: names at index
+	fmt.Printf("Name: %s at index: %v\n", names[0], 0)
+	fmt.Printf("Name: %s at index: %v\n", names[432], 432)
+	fmt.Printf("Name: %s at index: %v\n", names[43243], 43243)
 	fmt.Printf("Name time: %v\n", time.Since(start))
 
 	// report c1: total number of lines
-	fmt.Printf("Total file line count: %v\n", fileLineCount)
-	fmt.Printf("Line count time: : %v\n", time.Since(start))
+	fmt.Printf("Total file line count: %v\n", len(names))
+	fmt.Printf("Line count time: %v\n", time.Since(start))
 
 	// report c3: donation frequency
 	for k, v := range dateMap {
-		fmt.Printf("Donations per month and year: %v and donation ncount: %v\n", k, v)
+		fmt.Printf("Donations per month and year: %v and donation count: %v\n", k, v)
 	}
-	fmt.Printf("Donations time: : %v\n", time.Since(start))
+	fmt.Printf("Donations time: %v\n", time.Since(start))
 
 	// report c4: most common firstName
 	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", commonName, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
-
-	// other stats
-	fmt.Printf("linesChunkPoolAllocated: %v, entriesPoolAllocated: %v\n", linesChunkPoolAllocated, entriesPoolAllocated)
-	fmt.Fprintf(os.Stderr, "revision: %v, runtime: %v\n", filepath.Base(os.Args[0]), time.Since(start))
 }

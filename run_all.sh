@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-for i in {0..10}
+for i in $(seq 0 9)
 do
-    ./bin/rev${i} ${1} > /dev/null
-    ./bin/rev${i} ${1} > /dev/null
-    ./bin/rev${i} ${1} > /dev/null
+    ./bin/rev${i} ${1}
+    ./bin/rev${i} ${1}
+    ./bin/rev${i} ${1}
 done

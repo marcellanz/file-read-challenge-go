@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -15,7 +14,6 @@ import (
 
 func main() {
 	start := time.Now()
-
 	file, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
@@ -23,14 +21,12 @@ func main() {
 	defer file.Close()
 
 	firstNamePat := regexp.MustCompile(", \\s*[^, ]+")
-	names := make([]string, 0, 0)
-	firstNames := make([]string, 0, 0)
-	dates := make([]string, 0, 0)
+	names := make([]string, 0)
+	firstNames := make([]string, 0)
+	dates := make([]string, 0)
 	commonName := ""
 	commonCount := 0
-
 	scanner := bufio.NewScanner(file)
-
 	nameMap := make(map[string]int)
 	dateMap := make(map[string]int)
 
@@ -47,6 +43,7 @@ func main() {
 		atomic.AddInt64(&linesChunkPoolAllocated, 1)
 		return lines
 	}}
+	lines := linesPool.Get().([]string)[:0]
 
 	entriesPoolAllocated := int64(0)
 	entriesPool := sync.Pool{New: func() interface{} {
@@ -54,8 +51,6 @@ func main() {
 		atomic.AddInt64(&entriesPoolAllocated, 1)
 		return entries
 	}}
-
-	lines := linesPool.Get().([]string)[:0]
 	mutex := &sync.Mutex{}
 	wg := sync.WaitGroup{}
 
@@ -75,6 +70,7 @@ func main() {
 					name := strings.TrimSpace(split[7])
 					entry.name = name
 
+					// extract first names
 					if matched := firstNamePat.FindString(name); matched != "" {
 						entry.firstName = matched[2:]
 					}
@@ -87,12 +83,11 @@ func main() {
 				for _, entry := range entries {
 					if entry.firstName != "" {
 						firstNames = append(firstNames, entry.firstName)
-
-						count := nameMap[entry.firstName]
-						nameMap[entry.firstName] = count + 1
-						if count+1 > commonCount {
+						nameCount := nameMap[entry.firstName]
+						nameMap[entry.firstName] = nameCount + 1
+						if nameCount+1 > commonCount {
 							commonName = entry.firstName
-							commonCount = count + 1
+							commonCount = nameCount + 1
 						}
 					}
 					names = append(names, entry.name)
@@ -101,8 +96,8 @@ func main() {
 				}
 				entriesPool.Put(entries)
 				linesPool.Put(linesToProcess)
-				mutex.Unlock()
 				wg.Add(-len(entries))
+				mutex.Unlock()
 			}()
 			lines = linesPool.Get().([]string)[:0]
 		}
@@ -120,19 +115,15 @@ func main() {
 
 	// report c1: total number of lines
 	fmt.Printf("Total file line count: %v\n", len(names))
-	fmt.Printf("Line count time: : %v\n", time.Since(start))
+	fmt.Printf("Line count time: %v\n", time.Since(start))
 
 	// report c3: donation frequency
 	for k, v := range dateMap {
-		fmt.Printf("Donations per month and year: %v and donation ncount: %v\n", k, v)
+		fmt.Printf("Donations per month and year: %v and donation count: %v\n", k, v)
 	}
-	fmt.Printf("Donations time: : %v\n", time.Since(start))
+	fmt.Printf("Donations time: %v\n", time.Since(start))
 
 	// report c4: most common firstName
 	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", commonName, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
-
-	// other stats
-	fmt.Printf("linesChunkPoolAllocated: %v, entriesPoolAllocated: %v\n", linesChunkPoolAllocated, entriesPoolAllocated)
-	fmt.Fprintf(os.Stderr, "revision: %v, runtime: %v\n", filepath.Base(os.Args[0]), time.Since(start))
 }

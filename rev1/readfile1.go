@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -14,7 +13,6 @@ import (
 
 func main() {
 	start := time.Now()
-
 	file, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
@@ -27,9 +25,7 @@ func main() {
 	dates := make([]string, 0)
 	commonName := ""
 	commonCount := 0
-
 	scanner := bufio.NewScanner(file)
-
 	namesC := make(chan string)
 	firstNamesC := make(chan string)
 	datesC := make(chan string)
@@ -62,7 +58,7 @@ func main() {
 		wg.Add(3)
 		go func() {
 			// get all the names
-			split := strings.SplitN(text, "|", 9) // 10.95
+			split := strings.SplitN(text, "|", 9)
 			name := strings.TrimSpace(split[7])
 			namesC <- name
 
@@ -92,7 +88,7 @@ func main() {
 
 	// report c1: total number of lines
 	fmt.Printf("Total file line count: %v\n", len(names))
-	fmt.Printf("Line count time: : %v\n", time.Since(start))
+	fmt.Printf("Line count time: %v\n", time.Since(start))
 
 	// report c3: donation frequency
 	dateMap := make(map[string]int)
@@ -102,21 +98,19 @@ func main() {
 	for k, v := range dateMap {
 		fmt.Printf("Donations per month and year: %v and donation count: %v\n", k, v)
 	}
-	fmt.Printf("Donations time: : %v\n", time.Since(start))
+	fmt.Printf("Donations time: %v\n", time.Since(start))
 
 	// report c4: most common firstName
 	nameMap := make(map[string]int)
-	ncount := 0 // new count
+	nameCount := 0 // new count
 	for _, name := range firstNames {
-		ncount = nameMap[name] + 1
-		nameMap[name] = ncount
-		if ncount > commonCount {
+		nameCount = nameMap[name] + 1
+		nameMap[name] = nameCount
+		if nameCount > commonCount {
 			commonName = name
-			commonCount = ncount
+			commonCount = nameCount
 		}
 	}
-
 	fmt.Printf("The most common first name is: %s and it occurs: %v times.\n", commonName, commonCount)
 	fmt.Printf("Most common name time: %v\n", time.Since(start))
-	fmt.Fprintf(os.Stderr, "revision: %v, runtime: %v\n", filepath.Base(os.Args[0]), time.Since(start))
 }
