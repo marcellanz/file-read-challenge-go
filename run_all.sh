@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-for i in $(seq 0 9)
+start=0
+end=9
+for ((i=start; i<=end; i++))
 do
     ./bin/rev${i} ${1}
     ./bin/rev${i} ${1}
